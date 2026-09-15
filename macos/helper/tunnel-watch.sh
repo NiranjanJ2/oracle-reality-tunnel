@@ -16,6 +16,7 @@ if [[ -e "$marker" && ! -e "$state" ]]; then
   /sbin/route -n add -host "$vps" "$gateway" 2>/dev/null || true
   /sbin/route -n add -net 0.0.0.0/1 -interface utun233 2>/dev/null || true
   /sbin/route -n add -net 128.0.0.0/1 -interface utun233 2>/dev/null || true
+  /bin/launchctl kickstart -k system/dev.oracletunnel.dns
   /usr/sbin/networksetup -setdnsservers Wi-Fi 127.0.0.1
   touch "$state"; write_status Connected
 elif [[ ! -e "$marker" && -e "$state" ]]; then
