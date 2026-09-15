@@ -1,0 +1,10 @@
+[Unit]
+Description=Oracle Reality Tunnel
+After=network-online.target
+[Service]
+ExecStart=/usr/local/bin/xray run -config /etc/oracle-tunnel/config.json
+Restart=on-failure
+User=nobody
+NoNewPrivileges=true
+[Install]
+WantedBy=multi-user.target

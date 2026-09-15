@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+dry=false; vps=""; user=ubuntu; identity=""
+while [ "$#" -gt 0 ]; do case "$1" in --dry-run) dry=true;; --vps) shift; vps=$1;; --ssh-user) shift; user=$1;; --identity) shift; identity=$1;; *) echo "unknown option: $1" >&2; exit 2;; esac; shift; done
+[ -n "$vps" ] || { printf 'Oracle VPS IPv4: '; read -r vps; }
+command -v ssh >/dev/null; command -v curl >/dev/null
+command -v brew >/dev/null || { echo 'Homebrew is required: https://brew.sh' >&2; exit 1; }
+echo "VPS: $user@$vps; TCP 443 must be open in Oracle Cloud."
+$dry && { echo "DRY RUN: generate unique REALITY keys; install Xray server; install macOS helper and app"; exit 0; }
+printf 'Continue? [y/N] '; read -r answer; [ "$answer" = y ] || exit 1
+brew list unbound >/dev/null 2>&1 || brew install unbound
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+version=v26.3.27
+curl -fsSL "https://github.com/XTLS/Xray-core/releases/download/$version/Xray-macos-arm64-v8a.zip" -o "$tmp/xray.zip"
+ditto -x -k "$tmp/xray.zip" "$tmp/xray-mac"
+uuid=$($tmp/xray-mac/xray uuid); keys=$($tmp/xray-mac/xray x25519); private=$(echo "$keys" | awk '/PrivateKey:/{print $2}'); public=$(echo "$keys" | awk '/Password:/{print $2}'); short=$(openssl rand -hex 8)
+export ORT_VPS_IP=$vps ORT_CLIENT_UUID=$uuid ORT_REALITY_PRIVATE_KEY=$private ORT_REALITY_PUBLIC_KEY=$public ORT_SHORT_ID=$short
+mkdir -p "$HOME/Library/Application Support/Oracle Tunnel"
+"$root/scripts/render-configs.sh" "$tmp/server.json" "$HOME/Library/Application Support/Oracle Tunnel/client.json"
+ssh_args=""; [ -n "$identity" ] && ssh_args="-i $identity"
+scp $ssh_args "$tmp/server.json" "$root/server/oracle-tunnel.service" "$root/server/install.sh" "$user@$vps:/tmp/"
+ssh $ssh_args "$user@$vps" 'sudo sh /tmp/install.sh'
+admin="'$root/macos/helper/install.sh' '$tmp/xray-mac/xray' '$HOME/Library/Application Support/Oracle Tunnel/client.json'"
+osascript -e "do shell script \"$admin\" with administrator privileges"
+"$root/macos/OracleTunnel/scripts/install-app.sh"
+echo 'Installed. The tunnel starts Off; allow TCP 443 in the Oracle Cloud security list before switching On.'
