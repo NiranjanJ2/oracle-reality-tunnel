@@ -23,20 +23,27 @@ public actor RealityClient: TunnelRunning {
 
     public func ping() async -> HealthState {
         let started = ContinuousClock.now
-        do {
-            let result = try await runner.run(
-                executable: "/usr/bin/curl",
-                arguments: ["--connect-timeout", "4", "--max-time", "8", "-fsS", "https://api.ipify.org"],
-                timeout: .seconds(10)
-            )
-            guard result.exitCode == 0 else {
-                return .unreachable(TunnelError.sanitized(result.stderr))
+        var failure = "HTTPS probes failed"
+        // IPv4 is the routed transport; IPv6 could bypass the tunnel on dual-stack Wi-Fi.
+        for endpoint in ["https://www.cloudflare.com/cdn-cgi/trace", "https://www.google.com/generate_204"] {
+            do {
+                let result = try await runner.run(
+                    executable: "/usr/bin/curl",
+                    arguments: ["-4", "--connect-timeout", "3", "--max-time", "5", "-fsS", "-o", "/dev/null", endpoint],
+                    timeout: .seconds(7)
+                )
+                guard result.exitCode == 0 else {
+                    failure = TunnelError.sanitized(result.stderr)
+                    continue
+                }
+                let elapsed = started.duration(to: .now).components
+                let latency = Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15
+                return .healthy(latencyMS: latency, path: "HTTPS")
+            } catch {
+                failure = TunnelError.sanitizedMessage(for: error)
             }
-            let latency = Double(started.duration(to: .now).components.attoseconds) / 1e15
-            return .healthy(latencyMS: latency, path: "home")
-        } catch {
-            return .unreachable(TunnelError.sanitizedMessage(for: error))
         }
+        return .unreachable(failure)
     }
 
     public func connect() async throws {}

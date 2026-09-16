@@ -6,6 +6,8 @@ Install and verify Oracle Reality Tunnel for the current user. The intended resu
 
 This repository is Oracle-only. Do not introduce Tailscale, Headscale, a domain requirement, a home server, a residential exit, or another person's infrastructure.
 
+Optional DNS coexistence with an already-installed Tailscale client is permitted: temporarily suppress its DNS override while this tunnel is On and restore its original preference when Off. Never install Tailscale or make it a routing/setup dependency. Preserve the root-owned DNS preference snapshot across restarts and upgrades. The implementation is IPv4-only; disclose this limitation instead of claiming complete traffic isolation.
+
 ## Operating Rules
 
 1. Work step by step and inspect existing state before changing it.
@@ -121,6 +123,7 @@ Then turn Oracle Tunnel On and verify:
 - Wi-Fi DNS is `127.0.0.1`.
 - The localhost resolver returns a real A record through DNS-over-TLS.
 - A real HTTPS request succeeds.
+- If Tailscale is present, its DNS override is disabled and macOS selects localhost DNS rather than Tailscale supplemental DNS. Do not treat a successful direct `dig @127.0.0.1` query alone as proof that system DNS works; verify normal HTTPS resolution too.
 - The observed public IP equals the user's Oracle VPS IP.
 - Relaunching the menu-bar app preserves the active state.
 - The VPS service remains active with no increasing restart count.
@@ -134,6 +137,7 @@ Then turn the tunnel Off and verify:
 - DNS returns to automatic.
 - HTTPS browsing still works.
 - Public IP returns to the local network's address.
+- Any saved Tailscale DNS preference is restored and the saved snapshot removed.
 
 Leave the tunnel Off unless the user explicitly asks to leave it On.
 
